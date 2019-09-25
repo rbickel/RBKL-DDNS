@@ -3,6 +3,9 @@ using namespace System.Net
 # Input bindings are passed in via param block.
 param($Request, $TriggerMetadata)
 
+$zoneName = $env:DNSZone
+$zoneRgName = $env:DNSZoneRgName
+
 # Write to the Azure Functions log stream.
 Write-Host "PowerShell HTTP trigger function processed a request."
 Write-Host $Request
@@ -23,25 +26,25 @@ if ($name -And $address) {
     
     #Connect-AzAccount -Identity
     $RecordSet = Get-AzDnsRecordSet `
-        -ResourceGroupName "DNS" `
-        -ZoneName "ddns.rbkl.xyz" `
+        -ResourceGroupName $zoneRgName `
+        -ZoneName $zoneName `
         -Name $name `
         -RecordType A `
         -ErrorAction SilentlyContinue
 
-    if(!$RecordSet)
-    {
+    if (!$RecordSet) {
         $Records = @()
         $Records += New-AzDnsRecordConfig -IPv4Address $address
         $RecordSet = New-AzDnsRecordSet `
-            -ResourceGroupName "DNS" `
-            -ZoneName "ddns.rbkl.xyz" `
+            -ResourceGroupName $zoneRgName `
+            -ZoneName $zoneName `
             -Name $name `
             -RecordType A `
             -Ttl 5 `
             -DnsRecords $Records
-         Write-Host "Create new record for $name - $address"
-    }else{
+        Write-Host "Create new record for $name - $address"
+    }
+    else {
         $skip = $False
         foreach ($rec in $RecordSet.Records) {
             if ($rec.Ipv4Address -contains $address) {
@@ -51,12 +54,12 @@ if ($name -And $address) {
             }
         }
 
-        if(!$skip)    
-        {
+        if (!$skip) {
             $RecordSet.Records = @()
             Add-AzDnsRecordConfig -RecordSet $RecordSet -Ipv4Address $address
             Set-AzDnsRecordSet -RecordSet $RecordSet
-        }else{
+        }
+        else {
             Write-Host "Skipped as IP Address didn't change"
         }
     }
@@ -71,6 +74,6 @@ else {
 
 # Associate values to output bindings by calling 'Push-OutputBinding'.
 Push-OutputBinding -Name Response -Value ([HttpResponseContext]@{
-    StatusCode = $status
-    Body = $body
-})
+        StatusCode = $status
+        Body       = $body
+    })
